@@ -4,24 +4,16 @@ import ItemCard from "../components/ItemCard";
 import CreateAuction from "../components/CreateAuction";
 import "./Home.css";
 
-// Update this with your new contract address after deployment
-const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+const CONTRACT_ADDRESS = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
 
 const ABI = [
-  // Read functions
   "function getHighestBid(uint itemId) view returns (uint)",
   "function getHighestBidder(uint itemId) view returns (address)",
-  "function getItemDetails(uint itemId) view returns (string name, string description, address seller, uint highestBid, address highestBidder, uint endTime, bool isActive)",
-  
-  // Write functions
   "function bid(uint itemId) payable",
   "function withdraw(uint itemId)",
   "function createAuction(string _name, string _description, uint _durationInMinutes) public",
-  "function endAuction(uint itemId) public",
-  
-  // Events with indexed parameters
   "event AuctionCreated(uint indexed itemId, address indexed seller, string name, uint endTime)",
-  "event BidPlaced(uint indexed itemId, address indexed bidder, uint amount)"
+  "event BidPlaced(uint indexed itemId, address indexed bidder, uint amount)",
 ];
 
 const Home = () => {
@@ -30,7 +22,18 @@ const Home = () => {
   const [account, setAccount] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [provider, setProvider] = useState(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      setMousePosition({
+        x: (e.clientX / window.innerWidth - 0.5) * 20,
+        y: (e.clientY / window.innerHeight - 0.5) * 20,
+      });
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
 
   const fetchItems = async () => {
     try {
@@ -51,7 +54,6 @@ const Home = () => {
 
   const connectWallet = async () => {
     try {
-      // Check if MetaMask is installed
       if (!window.ethereum) {
         alert("Please install MetaMask!");
         return;
@@ -61,19 +63,14 @@ const Home = () => {
       await provider.send("eth_requestAccounts", []);
       const signer = provider.getSigner();
       const address = await signer.getAddress();
-      
-      setProvider(provider);
+
       setAccount(address);
-      
-      // Create contract instance with signer
       const cont = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
       setContract(cont);
 
-      // Listen for account changes
-      window.ethereum.on('accountsChanged', (accounts) => {
+      window.ethereum.on("accountsChanged", (accounts) => {
         if (accounts.length > 0) {
           setAccount(accounts[0]);
-          // Update contract with new signer
           const newSigner = provider.getSigner();
           const newCont = new ethers.Contract(CONTRACT_ADDRESS, ABI, newSigner);
           setContract(newCont);
@@ -82,83 +79,149 @@ const Home = () => {
           setContract(null);
         }
       });
-
-      // Listen for chain changes
-      window.ethereum.on('chainChanged', () => {
-        window.location.reload();
-      });
-
     } catch (error) {
       console.error("Connection error:", error);
     }
   };
 
-  const handleAuctionCreated = () => {
-    fetchItems(); // Refresh items list
-  };
-
-  const formatAddress = (addr) => {
-    if (!addr) return "";
-    return `${addr.substring(0, 6)}...${addr.substring(38)}`;
-  };
-
   return (
-    <div className="home">
-      <div className="navbar">
-        <div className="logo">
-          <h1>🎨 Auction DApp</h1>
+    <div className="home-3d">
+      {/* Galaxy Background */}
+      {/* Deep Black Universe Background */}
+      <div className="universe-bg">
+        {/* Very subtle nebulae */}
+        <div className="subtle-nebula nebula-1"></div>
+        <div className="subtle-nebula nebula-2"></div>
+
+        {/* 3D Star Layers */}
+        <div className="stars-distant"></div>
+        <div className="stars-medium"></div>
+        <div className="stars-bright"></div>
+
+        {/* Parallax Layers for depth */}
+        <div className="parallax-layer layer-1"></div>
+        <div className="parallax-layer layer-2"></div>
+
+        {/* Falling Stars with 3D effect */}
+        <div className="falling-star falling-star-1"></div>
+        <div className="falling-star falling-star-2"></div>
+        <div className="falling-star falling-star-3"></div>
+        <div className="falling-star falling-star-4"></div>
+        <div className="falling-star falling-star-5"></div>
+        <div className="falling-star falling-star-6"></div>
+        <div className="falling-star falling-star-7"></div>
+        <div className="falling-star falling-star-8"></div>
+      </div>
+
+      {/* Navbar */}
+      <nav className="navbar-3d glass">
+        <div className="logo-container">
+          <div className="logo-3d">
+            <span className="logo-text">🎨</span>
+            <span className="logo-text-gradient">Auction</span>
+            <span className="logo-text">DApp</span>
+          </div>
         </div>
+
         <div className="nav-actions">
           {account && (
-            <span className="wallet-info">
-              {formatAddress(account)}
-            </span>
+            <div className="wallet-info-3d glass">
+              <div className="wallet-dot"></div>
+              <span>{`${account.substring(0, 6)}...${account.substring(38)}`}</span>
+            </div>
           )}
-          <button 
-            className="create-btn"
+
+          <button
+            className="btn-3d btn-primary"
             onClick={() => setShowCreateModal(true)}
             disabled={!contract}
           >
-            + Create Auction
+            <span className="btn-content">
+              <span className="btn-icon">+</span>
+              Create Auction
+            </span>
+            <div className="btn-glow"></div>
           </button>
-          <button 
-            className="connect-btn"
-            onClick={connectWallet}
-          >
-            {account ? "Connected" : "Connect Wallet"}
+
+          <button className="btn-3d btn-secondary" onClick={connectWallet}>
+            <span className="btn-content">
+              {account ? "Connected" : "Connect Wallet"}
+            </span>
+            <div className="btn-glow"></div>
           </button>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <div className="hero-section">
+        <h1 className="hero-title">
+          <span className="title-line">Discover Unique</span>
+          <span className="title-gradient">Digital Auctions</span>
+        </h1>
+        <p className="hero-subtitle">
+          Bid on exclusive items in real-time with blockchain technology
+        </p>
+
+        <div className="stats-container">
+          <div className="stat-card glass-card">
+            <div className="stat-value">{items.length}</div>
+            <div className="stat-label">ACTIVE AUCTIONS</div>
+          </div>
+          <div className="stat-card glass-card">
+            <div className="stat-value">93</div>
+            <div className="stat-label">TOTAL BIDDERS</div>
+          </div>
+          <div className="stat-card glass-card">
+            <div className="stat-value">415</div>
+            <div className="stat-label">ETH VOLUME</div>
+          </div>
         </div>
       </div>
 
-      <div className="content">
-        <div className="header">
+      {/* Main Content */}
+      <div className="content-3d">
+        <div className="section-header">
           <h2>Live Auctions</h2>
-          <p>Discover unique items and place your bids</p>
+          <div className="header-line"></div>
         </div>
 
         {loading ? (
-          <div className="loading">Loading auctions...</div>
+          <div className="loading-3d">
+            <div className="loader"></div>
+            <p>Loading amazing auctions...</p>
+          </div>
         ) : items.length === 0 ? (
-          <div className="no-items">
-            <p>No active auctions</p>
-            <button onClick={() => setShowCreateModal(true)}>
-              Create the first auction
+          <div className="empty-state glass-card">
+            <div className="empty-icon">🎨</div>
+            <h3>No Active Auctions</h3>
+            <p>Be the first to create an amazing auction!</p>
+            <button
+              className="btn-3d btn-primary"
+              onClick={() => setShowCreateModal(true)}
+            >
+              Create First Auction
             </button>
           </div>
         ) : (
-          <div className="grid">
-            {items.map((item) => (
-              <ItemCard key={item._id || item.itemId} item={item} contract={contract} />
+          <div className="grid-3d">
+            {items.map((item, index) => (
+              <ItemCard
+                key={item._id || item.itemId}
+                item={item}
+                contract={contract}
+                index={index}
+              />
             ))}
           </div>
         )}
       </div>
 
+      {/* Create Auction Modal */}
       {showCreateModal && (
         <CreateAuction
           contract={contract}
           onClose={() => setShowCreateModal(false)}
-          onAuctionCreated={handleAuctionCreated}
+          onAuctionCreated={fetchItems}
         />
       )}
     </div>

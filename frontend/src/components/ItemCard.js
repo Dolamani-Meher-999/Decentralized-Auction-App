@@ -1,48 +1,71 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ethers } from "ethers";
 import "./ItemCard.css";
 
-const ItemCard = ({ item, contract }) => {
+const ItemCard = ({ item, contract, index }) => {
   const [bidAmount, setBidAmount] = useState("");
   const [highestBid, setHighestBid] = useState(null);
   const [highestBidder, setHighestBidder] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
+  const [timeLeft, setTimeLeft] = useState("");
+  const [isHovered, setIsHovered] = useState(false);
+  const [mousePosition, setMousePosition] = useState({ x: 0.5, y: 0.5 });
+  const cardRef = useRef(null);
 
   useEffect(() => {
     if (contract && item.itemId !== undefined) {
       fetchBidData();
       
-      // Set up event listener for this specific item
-      try {
-        // Create filter for BidPlaced events for this specific item
-        // In ethers v5, we need to pass null for non-indexed parameters
-        const filter = contract.filters.BidPlaced(item.itemId, null, null);
-        
-        const handleBidPlaced = (...args) => {
-          const event = args[args.length - 1]; // Last argument is the event object
-          const [itemId, bidder, amount] = args;
-          
-          console.log(`New bid on item ${itemId}: ${ethers.utils.formatEther(amount)} ETH from ${bidder}`);
-          fetchBidData(); // Refresh bid data
-          setMessage({ 
-            text: `New bid of ${ethers.utils.formatEther(amount)} ETH received!`, 
-            type: "info" 
-          });
-          setTimeout(() => setMessage({ text: "", type: "" }), 3000);
-        };
+      // Set up event listener for real-time updates
+      const filter = contract.filters.BidPlaced(item.itemId, null, null);
+      
+      const handleBidPlaced = (...args) => {
+        console.log(`🎯 New bid on item ${item.itemId}`);
+        fetchBidData();
+        setMessage({ 
+          text: `🎉 New bid received!`, 
+          type: "success" 
+        });
+        setTimeout(() => setMessage({ text: "", type: "" }), 3000);
+      };
 
-        contract.on(filter, handleBidPlaced);
-
-        // Cleanup listener on unmount
-        return () => {
-          contract.off(filter, handleBidPlaced);
-        };
-      } catch (error) {
-        console.error("Error setting up event listener:", error);
-      }
+      contract.on(filter, handleBidPlaced);
+      
+      return () => {
+        contract.off(filter, handleBidPlaced);
+      };
     }
   }, [contract, item.itemId]);
+
+  useEffect(() => {
+    // Simulate auction timer (replace with actual contract end time)
+    // In production, you'd get this from contract.getItemDetails(item.itemId)
+    const endTime = Date.now() + 3600000; // 1 hour from now
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const distance = endTime - now;
+      
+      if (distance < 0) {
+        setTimeLeft("Ended");
+        clearInterval(timer);
+      } else {
+        const hours = Math.floor(distance / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+        
+        if (hours > 0) {
+          setTimeLeft(`${hours}h ${minutes}m`);
+        } else if (minutes > 0) {
+          setTimeLeft(`${minutes}m ${seconds}s`);
+        } else {
+          setTimeLeft(`${seconds}s`);
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   const fetchBidData = async () => {
     try {
@@ -55,7 +78,6 @@ const ItemCard = ({ item, contract }) => {
       
       setHighestBid(bid);
       
-      // Check if bidder is zero address (no bids yet)
       const zeroAddress = "0x0000000000000000000000000000000000000000";
       if (!bidder || bidder === zeroAddress) {
         setHighestBidder("No bids");
@@ -64,19 +86,25 @@ const ItemCard = ({ item, contract }) => {
       }
     } catch (error) {
       console.error("Error fetching bid data:", error);
-      setHighestBid(ethers.BigNumber.from("0"));
-      setHighestBidder("No bids");
     }
+  };
+
+  const handleMouseMove = (e) => {
+    if (!cardRef.current || !isHovered) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    setMousePosition({ x, y });
   };
 
   const handleBid = async () => {
     if (!contract) {
-      setMessage({ text: "Please connect wallet first", type: "error" });
+      setMessage({ text: '👛 Please connect wallet first', type: 'error' });
       return;
     }
 
     if (!bidAmount || parseFloat(bidAmount) <= 0) {
-      setMessage({ text: "Enter valid bid amount", type: "error" });
+      setMessage({ text: '⚠️ Enter valid bid amount', type: 'error' });
       return;
     }
 
@@ -84,106 +112,170 @@ const ItemCard = ({ item, contract }) => {
       setLoading(true);
       const bidInWei = ethers.utils.parseEther(bidAmount);
       
-      // Check if bid is higher than current highest
       if (highestBid && bidInWei.lte(highestBid)) {
         setMessage({ 
-          text: `Bid must be higher than current bid: ${ethers.utils.formatEther(highestBid)} ETH`, 
-          type: "error" 
+          text: `📈 Bid must be higher than ${ethers.utils.formatEther(highestBid)} ETH`, 
+          type: 'error' 
         });
         setLoading(false);
         return;
       }
 
       const tx = await contract.bid(item.itemId, { value: bidInWei });
-      setMessage({ text: "Bid placed! Waiting for confirmation...", type: "info" });
+      setMessage({ text: '⏳ Processing transaction...', type: 'info' });
       
       await tx.wait();
-      setMessage({ text: "Bid successful!", type: "success" });
+      setMessage({ text: '✅ Bid placed successfully!', type: 'success' });
       setBidAmount("");
-      await fetchBidData(); // Refresh data
+      await fetchBidData();
       
       setTimeout(() => setMessage({ text: "", type: "" }), 3000);
     } catch (error) {
       console.error("Bid error:", error);
-      let errorMessage = "Bid failed";
       
-      // Parse common error messages
+      let errorMessage = 'Bid failed';
       if (error.reason) {
         errorMessage = error.reason;
       } else if (error.message) {
-        if (error.message.includes("Bid too low")) {
-          errorMessage = "Bid too low! Must be higher than current bid";
-        } else if (error.message.includes("Auction ended")) {
-          errorMessage = "Auction has ended";
-        } else if (error.message.includes("user rejected")) {
-          errorMessage = "Transaction rejected";
+        if (error.message.includes('user rejected')) {
+          errorMessage = '❌ Transaction rejected';
+        } else if (error.message.includes('insufficient funds')) {
+          errorMessage = '💰 Insufficient funds';
+        } else if (error.message.includes('Bid too low')) {
+          errorMessage = '📉 Bid too low';
+        } else {
+          errorMessage = error.message.substring(0, 50);
         }
       }
       
-      setMessage({ text: errorMessage, type: "error" });
+      setMessage({ text: errorMessage, type: 'error' });
       setTimeout(() => setMessage({ text: "", type: "" }), 3000);
     } finally {
       setLoading(false);
     }
   };
 
-  // Format price safely
   const formatPrice = (price) => {
     if (!price) return "0";
     try {
       return ethers.utils.formatEther(price);
-    } catch (error) {
-      console.error("Error formatting price:", error);
+    } catch {
       return "0";
     }
   };
 
-  // Format address safely
-  const formatAddress = (address) => {
-    if (!address || address === "No bids") return "No bids";
-    return `${address.substring(0, 6)}...${address.substring(38)}`;
+  const formatAddress = (addr) => {
+    if (!addr || addr === "No bids") return "No bids";
+    return `${addr.substring(0, 4)}...${addr.substring(38)}`;
   };
 
   return (
-    <div className="item-card">
-      <img src={item.image || "https://via.placeholder.com/300"} alt={item.name} />
-      <div className="item-details">
-        <h3>{item.name}</h3>
-        {item.description && <p className="description">{item.description}</p>}
-        <p className="owner">Owner: {formatAddress(item.owner)}</p>
-        <p className="base-price">Base Price: {item.basePrice} ETH</p>
+    <div 
+      className="card-3d-container"
+      style={{ animationDelay: `${(index || 0) * 0.1}s` }}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setMousePosition({ x: 0.5, y: 0.5 });
+      }}
+      ref={cardRef}
+    >
+      <div className="card-3d">
+        {/* Shine effect */}
+        <div 
+          className="card-shine" 
+          style={{
+            opacity: isHovered ? 0.2 : 0,
+            background: `radial-gradient(circle at ${mousePosition.x * 100}% ${mousePosition.y * 100}%, rgba(255,255,255,0.4), transparent 70%)`
+          }}
+        />
         
-        <div className="bid-info">
-          <p className="current-bid">
-            Current Bid: <span>{highestBid ? formatPrice(highestBid) : '0'} ETH</span>
-          </p>
-          <p className="highest-bidder">
-            Highest Bidder: <span>{highestBidder || "No bids"}</span>
-          </p>
+        {/* Image Section */}
+        <div className="card-image-container">
+          <img 
+            src={item.image || `https://picsum.photos/400/300?random=${item.itemId}`} 
+            alt={item.name}
+            loading="lazy"
+          />
+          <div className="card-badge">
+            ⏰ {timeLeft || 'Loading...'}
+          </div>
+          <div className="card-type-badge">
+            {item.category || 'Auction'}
+          </div>
         </div>
         
-        {message.text && (
-          <div className={`message ${message.type}`}>
-            {message.text}
+        {/* Content Section */}
+        <div className="card-content">
+          <h3 className="card-title">{item.name}</h3>
+          {item.description && (
+            <p className="card-description">{item.description}</p>
+          )}
+          
+          {/* Owner Info */}
+          <div className="card-owner">
+            <div className="owner-avatar">
+              {item.owner ? item.owner.substring(2, 4).toUpperCase() : '??'}
+            </div>
+            <div className="owner-details">
+              <span className="owner-label">Seller</span>
+              <span className="owner-address">
+                {item.owner ? formatAddress(item.owner) : 'Unknown'}
+              </span>
+            </div>
           </div>
-        )}
-        
-        <div className="bid-controls">
-          <input
-            type="number"
-            step="0.001"
-            min="0.001"
-            placeholder="Bid amount in ETH"
-            value={bidAmount}
-            onChange={(e) => setBidAmount(e.target.value)}
-            disabled={loading}
-          />
-          <button 
-            onClick={handleBid} 
-            disabled={loading || !contract}
-          >
-            {loading ? "Processing..." : "Place Bid"}
-          </button>
+          
+          {/* Price Stats */}
+          <div className="card-stats">
+            <div className="stat">
+              <span className="stat-label">Base Price</span>
+              <span className="stat-value">{item.basePrice || 0} ETH</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Current Bid</span>
+              <span className="stat-value highlight">
+                {highestBid ? formatPrice(highestBid) : '0'} ETH
+              </span>
+            </div>
+          </div>
+          
+          {/* Highest Bidder */}
+          <div className="bidder-info">
+            <span className="bidder-label">🏆 Highest Bidder</span>
+            <span className="bidder-address">{highestBidder}</span>
+          </div>
+          
+          {/* Message Display */}
+          {message.text && (
+            <div className={`message-3d ${message.type}`}>
+              {message.text}
+            </div>
+          )}
+          
+          {/* Bid Controls */}
+          <div className="bid-controls-3d">
+            <input
+              type="number"
+              step="0.001"
+              min="0.001"
+              placeholder="Amount in ETH"
+              value={bidAmount}
+              onChange={(e) => setBidAmount(e.target.value)}
+              disabled={loading}
+              className="bid-input-3d"
+            />
+            <button 
+              onClick={handleBid} 
+              disabled={loading || !contract}
+              className="bid-button-3d"
+            >
+              <span className="button-content">
+                {loading ? '...' : 'Place Bid'}
+              </span>
+              <div className="button-glow"></div>
+            </button>
+          </div>
         </div>
       </div>
     </div>
