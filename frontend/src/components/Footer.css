@@ -1,0 +1,39 @@
+.past-section {
+  margin-top: 70px;
+  padding: 30px;
+
+  background: transparent;
+}
+
+.past-section h2 {
+  color: white;
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+
+.past-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  background: rgba(15, 23, 42, 0.6);
+
+  backdrop-filter: blur(12px);
+
+  border-radius: 12px;
+  overflow: hidden;
+
+  color: white;
+}
+
+.past-table th,
+.past-table td {
+  padding: 14px;
+}
+
+.past-table th {
+  background: rgba(2, 6, 23, 0.8);
+}
+
+.past-table tr:hover {
+  background: rgba(30, 41, 59, 0.4);
+}

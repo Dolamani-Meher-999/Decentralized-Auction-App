@@ -1,79 +1,113 @@
 const express = require("express");
-const router = express.Router();  // This creates a router function
+const router = express.Router();
 const Item = require("../models/Item");
 
-// GET all items
+//
+// GET ACTIVE ITEMS
+//
 router.get("/", async (req, res) => {
   try {
-    const items = await Item.find();
+    const items = await Item.find({
+      status: "active"
+    });
+
     res.json(items);
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      error: err.message
+    });
   }
 });
 
-// GET single item
-router.get("/:id", async (req, res) => {
+//
+// GET PAST AUCTIONS
+//
+router.get("/past", async (req, res) => {
   try {
-    const item = await Item.findOne({ itemId: req.params.id });
-    if (!item) {
-      return res.status(404).json({ error: "Item not found" });
-    }
-    res.json(item);
+    const items = await Item.find({
+      status: "ended"
+    });
+
+    res.json(items);
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      error: err.message
+    });
   }
 });
 
-// POST create item
+//
+// CREATE ITEM
+//
 router.post("/", async (req, res) => {
   try {
-    const { name, description, owner, basePrice, image, itemId } = req.body;
+    const {
+      name,
+      description,
+      owner,
+      basePrice,
+      image,
+      itemId
+    } = req.body;
 
-    // Validation
-    if (!name || !owner || !image || itemId === undefined) {
-      return res.status(400).json({ 
-        error: "Missing required fields: name, owner, image, itemId" 
+    const existingItem =
+      await Item.findOne({ itemId });
+
+    if (existingItem) {
+      return res.status(400).json({
+        error: "Item already exists"
       });
     }
 
-    // Check if item exists
-    const existingItem = await Item.findOne({ itemId });
-    if (existingItem) {
-      return res.status(400).json({ error: "Item with this ID already exists" });
-    }
-
-    // Create new item
     const newItem = new Item({
       name,
-      description: description || "",
+      description,
       owner,
-      basePrice: basePrice || 0,
+      basePrice,
       image,
       itemId,
-      status: 'active'
+      status: "active"
     });
 
-    const savedItem = await newItem.save();
+    const savedItem =
+      await newItem.save();
+
     res.status(201).json(savedItem);
+
   } catch (err) {
-    console.error("Error creating item:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      error: err.message
+    });
   }
 });
 
-// DELETE item
-router.delete("/:id", async (req, res) => {
+//
+// END AUCTION + STORE WINNER
+//
+router.put("/:id/end", async (req, res) => {
   try {
-    const deletedItem = await Item.findOneAndDelete({ itemId: req.params.id });
-    if (!deletedItem) {
-      return res.status(404).json({ error: "Item not found" });
-    }
-    res.json({ message: "Item deleted successfully", item: deletedItem });
+    const { winner, finalBid } = req.body;
+
+    const item =
+      await Item.findOneAndUpdate(
+        { itemId: req.params.id },
+        {
+          status: "ended",
+          winner,
+          finalBid
+        },
+        { new: true }
+      );
+
+    res.json(item);
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      error: err.message
+    });
   }
 });
 
-// THIS IS CRITICAL - Make sure this line is at the end!
 module.exports = router;

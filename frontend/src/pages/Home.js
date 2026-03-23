@@ -2,54 +2,86 @@ import React, { useEffect, useState } from "react";
 import { ethers } from "ethers";
 import ItemCard from "../components/ItemCard";
 import CreateAuction from "../components/CreateAuction";
+import PastAuctions from "../components/PastAuctions";
+import Footer from "../components/Footer";
 import "./Home.css";
 
-const CONTRACT_ADDRESS = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
+const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
 const ABI = [
+  "function getAuctionCount() view returns (uint)",
+  "function getItemDetails(uint itemId) view returns (string name, string description, address seller, uint highestBid, address highestBidder, uint endTime, bool isActive)",
   "function getHighestBid(uint itemId) view returns (uint)",
   "function getHighestBidder(uint itemId) view returns (address)",
   "function bid(uint itemId) payable",
   "function withdraw(uint itemId)",
+  "function endAuction(uint itemId)",
   "function createAuction(string _name, string _description, uint _durationInMinutes) public",
   "event AuctionCreated(uint indexed itemId, address indexed seller, string name, uint endTime)",
   "event BidPlaced(uint indexed itemId, address indexed bidder, uint amount)",
+  "event AuctionEnded(uint indexed itemId, address indexed winner, uint amount)",
 ];
 
 const Home = () => {
-  const [items, setItems] = useState([]);
+  const [liveItems, setLiveItems] = useState([]);
+  const [pastItems, setPastItems] = useState([]);
   const [contract, setContract] = useState(null);
   const [account, setAccount] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      setMousePosition({
-        x: (e.clientX / window.innerWidth - 0.5) * 20,
-        y: (e.clientY / window.innerHeight - 0.5) * 20,
-      });
-    };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
+  const getReadContract = () => {
+    const prov = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
+    return new ethers.Contract(CONTRACT_ADDRESS, ABI, prov);
+  };
 
-  const fetchItems = async () => {
+  const fetchAllAuctions = async (cont) => {
     try {
       setLoading(true);
-      const response = await fetch("http://localhost:5000/api/items");
-      const data = await response.json();
-      setItems(data);
+      const readCont = cont || getReadContract();
+      const count = await readCont.getAuctionCount();
+      const total = count.toNumber();
+
+      const live = [];
+      const past = [];
+
+      for (let i = 1; i <= total; i++) {
+        try {
+          const details = await readCont.getItemDetails(i);
+          const item = {
+            itemId: i,
+            name: details.name,
+            description: details.description,
+            owner: details.seller,
+            basePrice: 0,
+            highestBid: details.highestBid,
+            highestBidder: details.highestBidder,
+            endTime: details.endTime.toNumber(),
+            isActive: details.isActive,
+          };
+
+          if (details.endTime.toNumber() === 0 || !details.isActive) {
+            past.push(item);
+          } else {
+            live.push(item);
+          }
+        } catch (e) {
+          console.error(`Error fetching item ${i}:`, e);
+        }
+      }
+
+      setLiveItems(live);
+      setPastItems(past);
     } catch (error) {
-      console.error("Error fetching items:", error);
+      console.error("Error fetching auctions:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  // Auto-fetch on load using read-only provider (no wallet needed)
   useEffect(() => {
-    fetchItems();
+    fetchAllAuctions();
   }, []);
 
   const connectWallet = async () => {
@@ -58,20 +90,20 @@ const Home = () => {
         alert("Please install MetaMask!");
         return;
       }
-
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      await provider.send("eth_requestAccounts", []);
-      const signer = provider.getSigner();
+      const prov = new ethers.providers.Web3Provider(window.ethereum);
+      await prov.send("eth_requestAccounts", []);
+      const signer = prov.getSigner();
       const address = await signer.getAddress();
-
       setAccount(address);
+
       const cont = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
       setContract(cont);
+      await fetchAllAuctions(cont);
 
-      window.ethereum.on("accountsChanged", (accounts) => {
+      window.ethereum.on("accountsChanged", async (accounts) => {
         if (accounts.length > 0) {
           setAccount(accounts[0]);
-          const newSigner = provider.getSigner();
+          const newSigner = prov.getSigner();
           const newCont = new ethers.Contract(CONTRACT_ADDRESS, ABI, newSigner);
           setContract(newCont);
         } else {
@@ -84,25 +116,22 @@ const Home = () => {
     }
   };
 
+  const handleRefresh = () => {
+    fetchAllAuctions(contract);
+  };
+
   return (
     <div className="home-3d">
-      {/* Galaxy Background */}
-      {/* Deep Black Universe Background */}
+
+      {/* Background */}
       <div className="universe-bg">
-        {/* Very subtle nebulae */}
         <div className="subtle-nebula nebula-1"></div>
         <div className="subtle-nebula nebula-2"></div>
-
-        {/* 3D Star Layers */}
         <div className="stars-distant"></div>
         <div className="stars-medium"></div>
         <div className="stars-bright"></div>
-
-        {/* Parallax Layers for depth */}
         <div className="parallax-layer layer-1"></div>
         <div className="parallax-layer layer-2"></div>
-
-        {/* Falling Stars with 3D effect */}
         <div className="falling-star falling-star-1"></div>
         <div className="falling-star falling-star-2"></div>
         <div className="falling-star falling-star-3"></div>
@@ -122,7 +151,6 @@ const Home = () => {
             <span className="logo-text">DApp</span>
           </div>
         </div>
-
         <div className="nav-actions">
           {account && (
             <div className="wallet-info-3d glass">
@@ -130,7 +158,6 @@ const Home = () => {
               <span>{`${account.substring(0, 6)}...${account.substring(38)}`}</span>
             </div>
           )}
-
           <button
             className="btn-3d btn-primary"
             onClick={() => setShowCreateModal(true)}
@@ -142,7 +169,6 @@ const Home = () => {
             </span>
             <div className="btn-glow"></div>
           </button>
-
           <button className="btn-3d btn-secondary" onClick={connectWallet}>
             <span className="btn-content">
               {account ? "Connected" : "Connect Wallet"}
@@ -152,7 +178,7 @@ const Home = () => {
         </div>
       </nav>
 
-      {/* Hero Section */}
+      {/* Hero */}
       <div className="hero-section">
         <h1 className="hero-title">
           <span className="title-line">Discover Unique</span>
@@ -161,24 +187,23 @@ const Home = () => {
         <p className="hero-subtitle">
           Bid on exclusive items in real-time with blockchain technology
         </p>
-
         <div className="stats-container">
           <div className="stat-card glass-card">
-            <div className="stat-value">{items.length}</div>
+            <div className="stat-value">{liveItems.length}</div>
             <div className="stat-label">ACTIVE AUCTIONS</div>
           </div>
           <div className="stat-card glass-card">
-            <div className="stat-value">93</div>
-            <div className="stat-label">TOTAL BIDDERS</div>
+            <div className="stat-value">{pastItems.length}</div>
+            <div className="stat-label">PAST AUCTIONS</div>
           </div>
           <div className="stat-card glass-card">
-            <div className="stat-value">415</div>
-            <div className="stat-label">ETH VOLUME</div>
+            <div className="stat-value">{liveItems.length + pastItems.length}</div>
+            <div className="stat-label">TOTAL AUCTIONS</div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Live Auctions */}
       <div className="content-3d">
         <div className="section-header">
           <h2>Live Auctions</h2>
@@ -188,9 +213,9 @@ const Home = () => {
         {loading ? (
           <div className="loading-3d">
             <div className="loader"></div>
-            <p>Loading amazing auctions...</p>
+            <p>Loading auctions from blockchain...</p>
           </div>
-        ) : items.length === 0 ? (
+        ) : liveItems.length === 0 ? (
           <div className="empty-state glass-card">
             <div className="empty-icon">🎨</div>
             <h3>No Active Auctions</h3>
@@ -204,26 +229,34 @@ const Home = () => {
           </div>
         ) : (
           <div className="grid-3d">
-            {items.map((item, index) => (
+            {liveItems.map((item, index) => (
               <ItemCard
-                key={item._id || item.itemId}
+                key={item.itemId}
                 item={item}
                 contract={contract}
                 index={index}
+                onAuctionEnded={handleRefresh}
               />
             ))}
           </div>
         )}
       </div>
 
-      {/* Create Auction Modal */}
+      {/* Past Auctions — always visible below live auctions */}
+      <PastAuctions items={pastItems} />
+
+      {/* Footer — always at bottom */}
+      <Footer />
+
+      {/* Create Modal */}
       {showCreateModal && (
         <CreateAuction
           contract={contract}
           onClose={() => setShowCreateModal(false)}
-          onAuctionCreated={fetchItems}
+          onAuctionCreated={handleRefresh}
         />
       )}
+
     </div>
   );
 };

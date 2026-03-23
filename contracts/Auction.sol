@@ -17,7 +17,6 @@ contract Auction {
     
     uint public nextItemId = 1;
     
-    // Events with indexed parameters for filtering
     event BidPlaced(uint indexed itemId, address indexed bidder, uint amount);
     event AuctionCreated(uint indexed itemId, address indexed seller, string name, uint endTime);
     event AuctionEnded(uint indexed itemId, address indexed winner, uint amount);
@@ -76,15 +75,17 @@ contract Auction {
         require(block.timestamp >= items[itemId].endTime, "Auction not ended");
         
         AuctionItem storage item = items[itemId];
-        require(item.seller == msg.sender || item.highestBidder != address(0), "Only seller can end with no bids");
         
         if (item.highestBidder != address(0)) {
             payable(item.seller).transfer(item.highestBid);
             emit AuctionEnded(itemId, item.highestBidder, item.highestBid);
         }
         
-        // Mark as ended by setting endTime to 0
         item.endTime = 0;
+    }
+
+    function getAuctionCount() public view returns (uint) {
+        return nextItemId - 1;
     }
 
     function getHighestBid(uint itemId) public view returns (uint) {
